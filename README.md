@@ -4,13 +4,7 @@
 
 ### *Weave Light With Your Hands*
 
-[![Live Demo](https://img.shields.io/badge/🌐_Live_Demo-GitHub_Pages-00f5ff?style=for-the-badge&labelColor=02020a)](https://bhavikaa-guptaa.github.io/Luminary/)
-[![Made with MediaPipe](https://img.shields.io/badge/MediaPipe-Hand_Tracking-bf00ff?style=for-the-badge&labelColor=02020a)](https://mediapipe.dev/)
-[![HTML Only](https://img.shields.io/badge/HTML-Single_File-ff006e?style=for-the-badge&labelColor=02020a)](./index.html)
-
 > A real-time hand-tracking art experience built entirely in the browser. No installs. No frameworks. Just your hands and light.
-
-![Luminary Banner](https://raw.githubusercontent.com/bhavikaa-guptaa/Luminary/main/preview.png)
 
 </div>
 
