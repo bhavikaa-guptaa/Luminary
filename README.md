@@ -113,16 +113,6 @@ Luminary runs **entirely in your browser**. No video, images, or hand data are e
 
 ---
 
-## 🤝 Contributing
-
-Contributions, ideas, and new mode suggestions are welcome! Feel free to open an issue or submit a pull request.
-
----
-
-## 📄 License
-
-MIT License — free to use, modify, and share.
-
 ---
 
 <div align="center">
