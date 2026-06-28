@@ -30,7 +30,7 @@ Paint with light in the air using your index finger. Your left hand is mirrored 
 - ✊ **Pinch** — Clear the canvas
 - ✌️ **Peace sign** — Cycle to the next color
 
-### 🌊 Fluid Ink *(New)*
+### 🌊 Fluid Ink 
 Your fingers disturb a living ink simulation. Every fingertip spawns glowing vapor particles that drift, curl, and dissipate like luminous smoke in liquid — driven by a curl noise field.
 
 ---
