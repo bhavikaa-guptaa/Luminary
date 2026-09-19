@@ -1,262 +1,102 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>LUMINARY — Neural Hand Interface</title>
-  <style>
-    @import url('https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Orbitron:wght@400;700;900&display=swap');
-    *{margin:0;padding:0;box-sizing:border-box;}
-    :root{
-      --neon-cyan:#00f5ff;--neon-purple:#bf00ff;--neon-pink:#ff006e;
-      --neon-green:#00ff88;--neon-orange:#ff6600;--dark:#02020a;
-    }
-    html,body{width:100%;height:100%;overflow:hidden;background:var(--dark);font-family:'Share Tech Mono',monospace;}
-
-    /* ── SCANLINE overlay ── */
-    body::after{
-      content:'';position:fixed;inset:0;z-index:9999;pointer-events:none;
-      background:repeating-linear-gradient(0deg,transparent,transparent 2px,rgba(0,0,0,0.08) 2px,rgba(0,0,0,0.08) 4px);
-    }
-
-    /* ── PAGES ── */
-    .page{position:fixed;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;
-      transition:opacity 0.6s ease,transform 0.6s ease;z-index:10;}
-    .page.hidden{opacity:0;pointer-events:none;transform:scale(0.96);}
-
-    /* ── VIDEO LAYER (always behind) ── */
-    #video{position:fixed;inset:0;width:100%;height:100%;object-fit:cover;
-      transform:scaleX(-1);z-index:1;opacity:0;transition:opacity 1s;}
-    #video.visible{opacity:1;}
-
-    /* ── CANVAS LAYERS ── */
-    #draw-canvas,#trail-canvas,#overlay-canvas{position:fixed;inset:0;width:100%;height:100%;z-index:2;pointer-events:none;}
-    #trail-canvas{z-index:3;}
-    #overlay-canvas{z-index:4;}
-
-    /* ── LANDING PAGE ── */
-    #page-landing{z-index:20;background:transparent;}
-    .landing-bg{position:fixed;inset:0;background:radial-gradient(ellipse at 50% 50%,#0a0020 0%,#02020a 70%);z-index:0;}
-
-    .glitch-title{
-      font-family:'Orbitron',sans-serif;font-size:clamp(2.5rem,8vw,7rem);font-weight:900;
-      color:var(--neon-cyan);text-align:center;letter-spacing:0.15em;line-height:1;
-      text-shadow:0 0 20px var(--neon-cyan),0 0 60px var(--neon-cyan),0 0 100px var(--neon-cyan);
-      position:relative;z-index:1;animation:flicker 4s infinite;
-    }
-    .glitch-title::before,.glitch-title::after{
-      content:attr(data-text);position:absolute;top:0;left:0;width:100%;
-    }
-    .glitch-title::before{
-      color:var(--neon-pink);clip-path:polygon(0 0,100% 0,100% 35%,0 35%);
-      transform:translate(-3px,0);animation:glitch1 3s infinite;
-    }
-    .glitch-title::after{
-      color:var(--neon-purple);clip-path:polygon(0 65%,100% 65%,100% 100%,0 100%);
-      transform:translate(3px,0);animation:glitch2 3s infinite;
-    }
-    @keyframes glitch1{0%,90%,100%{transform:translate(-3px,0);}91%{transform:translate(3px,-2px);clip-path:polygon(0 20%,100% 20%,100% 40%,0 40%);}93%{transform:translate(-3px,2px);}}
-    @keyframes glitch2{0%,88%,100%{transform:translate(3px,0);}89%{transform:translate(-3px,2px);clip-path:polygon(0 60%,100% 60%,100% 80%,0 80%);}91%{transform:translate(3px,-2px);}}
-    @keyframes flicker{0%,95%,100%{opacity:1;}96%{opacity:0.7;}97%{opacity:1;}98%{opacity:0.85;}}
-
-    .subtitle{font-size:clamp(0.7rem,2vw,1rem);color:rgba(0,245,255,0.6);letter-spacing:0.4em;
-      text-transform:uppercase;margin:16px 0 48px;z-index:1;position:relative;}
-
-    .start-btn{
-      font-family:'Orbitron',sans-serif;font-size:1rem;letter-spacing:0.3em;
-      padding:16px 48px;background:transparent;border:2px solid var(--neon-cyan);
-      color:var(--neon-cyan);cursor:pointer;position:relative;z-index:1;
-      text-transform:uppercase;transition:all 0.3s;overflow:hidden;
-    }
-    .start-btn::before{
-      content:'';position:absolute;inset:0;background:var(--neon-cyan);
-      transform:translateX(-100%);transition:transform 0.3s;z-index:-1;
-    }
-    .start-btn:hover::before{transform:translateX(0);}
-    .start-btn:hover{color:var(--dark);box-shadow:0 0 40px var(--neon-cyan);}
-
-    /* particle dots for landing */
-    .particle{position:fixed;border-radius:50%;pointer-events:none;z-index:0;}
-
-    /* ── MODE SELECT PAGE ── */
-    #page-modes{z-index:20;background:transparent;}
-    .modes-title{font-family:'Orbitron',sans-serif;font-size:clamp(1rem,3vw,1.8rem);
-      color:var(--neon-cyan);letter-spacing:0.3em;text-transform:uppercase;
-      margin-bottom:48px;text-shadow:0 0 20px var(--neon-cyan);}
-
-    .mode-cards{display:flex;gap:24px;flex-wrap:wrap;justify-content:center;max-width:1100px;padding:0 20px;}
-
-    .mode-card{
-      width:280px;padding:32px 24px;border:1px solid rgba(0,245,255,0.25);
-      background:rgba(0,5,20,0.8);backdrop-filter:blur(12px);cursor:pointer;
-      position:relative;overflow:hidden;transition:all 0.3s;flex-shrink:0;
-    }
-    .mode-card::before{
-      content:'';position:absolute;inset:0;opacity:0;transition:opacity 0.3s;
-    }
-    .mode-card[data-mode="string"]::before{background:radial-gradient(ellipse at 50% 0%,rgba(191,0,255,0.15),transparent 70%);}
-    .mode-card[data-mode="draw"]::before{background:radial-gradient(ellipse at 50% 0%,rgba(0,255,136,0.15),transparent 70%);}
-    .mode-card[data-mode="fluid"]::before{background:radial-gradient(ellipse at 50% 0%,rgba(0,245,255,0.15),transparent 70%);}
-    .mode-card:hover::before{opacity:1;}
-    .mode-card:hover{border-color:rgba(0,245,255,0.7);transform:translateY(-4px);
-      box-shadow:0 8px 40px rgba(0,245,255,0.2);}
-
-    .card-icon{font-size:2.5rem;margin-bottom:16px;display:block;}
-    .card-title{font-family:'Orbitron',sans-serif;font-size:1.1rem;font-weight:700;
-      color:#fff;letter-spacing:0.15em;margin-bottom:8px;}
-    .mode-card[data-mode="string"] .card-title{color:var(--neon-purple);}
-    .mode-card[data-mode="draw"] .card-title{color:var(--neon-green);}
-    .mode-card[data-mode="fluid"] .card-title{color:var(--neon-cyan);}
-    .card-desc{font-size:0.75rem;color:rgba(255,255,255,0.5);line-height:1.7;letter-spacing:0.05em;}
-    .card-badge{display:inline-block;margin-top:14px;padding:3px 10px;font-size:0.65rem;
-      letter-spacing:0.2em;border-radius:2px;text-transform:uppercase;}
-    .mode-card[data-mode="string"] .card-badge{background:rgba(191,0,255,0.2);color:var(--neon-purple);border:1px solid var(--neon-purple);}
-    .mode-card[data-mode="draw"] .card-badge{background:rgba(0,255,136,0.2);color:var(--neon-green);border:1px solid var(--neon-green);}
-    .mode-card[data-mode="fluid"] .card-badge{background:rgba(0,245,255,0.2);color:var(--neon-cyan);border:1px solid var(--neon-cyan);}
-
-    /* ── HUD (active during any mode) ── */
-    #hud{position:fixed;inset:0;z-index:50;pointer-events:none;}
-
-    /* Corner brackets */
-    .corner{position:absolute;width:50px;height:50px;pointer-events:none;}
-    .corner-tl{top:20px;left:20px;border-top:1px solid rgba(0,245,255,0.6);border-left:1px solid rgba(0,245,255,0.6);}
-    .corner-tr{top:20px;right:20px;border-top:1px solid rgba(0,245,255,0.6);border-right:1px solid rgba(0,245,255,0.6);}
-    .corner-bl{bottom:20px;left:20px;border-bottom:1px solid rgba(0,245,255,0.6);border-left:1px solid rgba(0,245,255,0.6);}
-    .corner-br{bottom:20px;right:20px;border-bottom:1px solid rgba(0,245,255,0.6);border-right:1px solid rgba(0,245,255,0.6);}
-    /* corner inner dots */
-    .corner::before{content:'';position:absolute;width:4px;height:4px;border-radius:50%;background:var(--neon-cyan);box-shadow:0 0 8px var(--neon-cyan);}
-    .corner-tl::before{top:-2px;left:-2px;} .corner-tr::before{top:-2px;right:-2px;}
-    .corner-bl::before{bottom:-2px;left:-2px;} .corner-br::before{bottom:-2px;right:-2px;}
-
-    /* Top center: mode label */
-    #hud-mode-label{
-      position:absolute;top:0;left:50%;transform:translateX(-50%);
-      font-family:'Orbitron',sans-serif;font-size:0.65rem;letter-spacing:0.5em;
-      color:var(--neon-cyan);text-transform:uppercase;
-      padding:8px 28px 7px;
-      border-bottom:1px solid rgba(0,245,255,0.25);
-      border-left:1px solid rgba(0,245,255,0.15);
-      border-right:1px solid rgba(0,245,255,0.15);
-      background:rgba(0,0,0,0.55);backdrop-filter:blur(8px);
-      white-space:nowrap;
-    }
-    #hud-mode-label::before{
-      content:'';position:absolute;bottom:-1px;left:50%;transform:translateX(-50%);
-      width:40px;height:1px;background:var(--neon-cyan);box-shadow:0 0 8px var(--neon-cyan);
-    }
-
-    /* ── Bottom dashboard panel ── */
-    #hud-dash{
-      position:absolute;bottom:0;left:50%;transform:translateX(-50%);
-      display:flex;align-items:center;gap:0;
-      background:rgba(2,2,15,0.82);backdrop-filter:blur(16px);
-      border-top:1px solid rgba(0,245,255,0.2);
-      border-left:1px solid rgba(0,245,255,0.1);
-      border-right:1px solid rgba(0,245,255,0.1);
-      border-radius:12px 12px 0 0;
-      overflow:hidden;pointer-events:all;
-    }
-
-    .dash-section{
-      display:flex;align-items:center;gap:10px;
-      padding:10px 18px;
-      border-right:1px solid rgba(0,245,255,0.1);
-    }
-    .dash-section:last-child{border-right:none;}
-    .dash-label{
-      font-size:0.55rem;letter-spacing:0.3em;color:rgba(0,245,255,0.35);
-      text-transform:uppercase;margin-bottom:4px;display:block;
-    }
-    .dash-col{display:flex;flex-direction:column;}
-
-    /* Swatches horizontal in dash */
-    #dash-swatches{display:flex;gap:6px;align-items:center;}
-    .c-swatch{width:16px;height:16px;border-radius:50%;cursor:pointer;
-      border:1.5px solid transparent;transition:all 0.18s;
-      box-shadow:0 0 5px currentColor;}
-    .c-swatch.active{transform:scale(1.35);border-color:#fff;box-shadow:0 0 10px currentColor;}
-
-    /* Brush slider horizontal */
-    #brush-wrap{display:flex;align-items:center;gap:8px;}
-    #brush-wrap label{display:none;}/* hide old label */
-    input[type=range]#brush-slider{
-      -webkit-appearance:none;writing-mode:unset;direction:unset;
-      width:80px;height:3px;
-      background:rgba(0,245,255,0.2);outline:none;cursor:pointer;border-radius:2px;
-    }
-    input[type=range]#brush-slider::-webkit-slider-thumb{
-      -webkit-appearance:none;width:12px;height:12px;border-radius:50%;
-      background:var(--neon-cyan);box-shadow:0 0 8px var(--neon-cyan);
-    }
-    #brush-val{font-size:0.7rem;color:var(--neon-cyan);min-width:18px;text-align:right;}
-
-    /* Dash buttons */
-    .hud-btn{
-      font-family:'Share Tech Mono',monospace;font-size:0.6rem;letter-spacing:0.18em;
-      padding:7px 13px;background:transparent;
-      border:1px solid rgba(0,245,255,0.3);
-      color:rgba(0,245,255,0.75);cursor:pointer;text-transform:uppercase;
-      transition:all 0.18s;pointer-events:all;border-radius:4px;
-      white-space:nowrap;
-    }
-    .hud-btn:hover{background:rgba(0,245,255,0.1);border-color:var(--neon-cyan);
-      color:#fff;box-shadow:0 0 10px rgba(0,245,255,0.25);}
-    .hud-btn.danger{border-color:rgba(255,0,110,0.4);color:rgba(255,0,110,0.7);}
-    .hud-btn.danger:hover{background:rgba(255,0,110,0.12);border-color:var(--neon-pink);
-      color:#fff;box-shadow:0 0 10px rgba(255,0,110,0.25);}
-    .hud-btn.multi-on{
-      border-color:rgba(255,220,0,0.6);color:#ffe000;
-      background:linear-gradient(90deg,rgba(255,0,110,0.15),rgba(0,245,255,0.15),rgba(191,0,255,0.15));
-      animation:multi-pulse 1.8s infinite alternate;
-    }
-    @keyframes multi-pulse{
-      from{box-shadow:0 0 6px #f0f;}
-      to{box-shadow:0 0 14px #ff0,0 0 24px #0ff;}
-    }
-
-    /* Hand dots */
-    #hand-indicators{display:flex;gap:10px;align-items:center;}
-    .hand-dot{width:8px;height:8px;border-radius:50%;background:rgba(0,245,255,0.15);
-      border:1px solid rgba(0,245,255,0.3);transition:all 0.3s;}
-    .hand-dot.active{background:var(--neon-cyan);box-shadow:0 0 10px var(--neon-cyan);border-color:var(--neon-cyan);}
-
-    /* Status bar — thin line above dash */
-    #status-bar{
-      position:absolute;bottom:56px;left:50%;transform:translateX(-50%);
-      font-size:0.62rem;color:rgba(0,245,255,0.45);letter-spacing:0.25em;
-      text-align:center;white-space:nowrap;pointer-events:none;
-    }
-
-    /* Gesture hint */
-    #gesture-hint{position:absolute;bottom:72px;left:50%;transform:translateX(-50%);
-      font-size:0.68rem;color:rgba(255,255,255,0.7);letter-spacing:0.15em;
-      padding:5px 16px;border:1px solid rgba(255,255,255,0.15);
-      background:rgba(0,0,0,0.55);backdrop-filter:blur(8px);
-      white-space:nowrap;border-radius:4px;
-      opacity:0;transition:opacity 0.4s;pointer-events:none;}
-    #gesture-hint.show{opacity:1;}
-
-    /* Mode switch animation */
-    #mode-flash{position:fixed;inset:0;z-index:100;background:var(--neon-cyan);
-      opacity:0;pointer-events:none;transition:opacity 0.15s;}
-
-    /* Remove old left/right floating panels */
-    #color-bar{display:none;}
-    #brush-wrap > label{display:none;}
-  </style>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>LUMINARY — Neural Hand Interface</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Orbitron:wght@400;700;900&display=swap');
+*{margin:0;padding:0;box-sizing:border-box}
+:root{--cy:#00f5ff;--pu:#bf00ff;--pk:#ff006e;--gr:#00ff88;--dk:#02020a}
+html,body{width:100%;height:100%;overflow:hidden;background:var(--dk);font-family:'Share Tech Mono',monospace}
+body::after{content:'';position:fixed;inset:0;z-index:9999;pointer-events:none;
+ background:repeating-linear-gradient(0deg,transparent,transparent 2px,rgba(0,0,0,.08) 2px,rgba(0,0,0,.08) 4px)}
+.page{position:fixed;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;
+ transition:opacity .6s,transform .6s;z-index:20}
+.page.hidden{opacity:0;pointer-events:none;transform:scale(.96)}
+#video{position:fixed;inset:0;width:100%;height:100%;object-fit:cover;transform:scaleX(-1);z-index:1;opacity:0;transition:opacity 1s}
+#video.visible{opacity:1}
+#draw-canvas,#overlay-canvas{position:fixed;inset:0;width:100%;height:100%;pointer-events:none}
+#draw-canvas{z-index:2}#overlay-canvas{z-index:4}
+.landing-bg{position:fixed;inset:0;background:radial-gradient(ellipse at 50% 50%,#0a0020 0%,#02020a 70%);z-index:-2}
+.particle{position:absolute;border-radius:50%;pointer-events:none;z-index:-1}
+.glitch-title{font-family:'Orbitron',sans-serif;font-size:clamp(2.5rem,8vw,7rem);font-weight:900;color:var(--cy);
+ text-align:center;letter-spacing:.15em;line-height:1;text-shadow:0 0 20px var(--cy),0 0 60px var(--cy);animation:flicker 4s infinite}
+.glitch-title::before,.glitch-title::after{content:attr(data-text);position:absolute;top:0;left:0;width:100%}
+.glitch-title::before{color:var(--pk);clip-path:polygon(0 0,100% 0,100% 35%,0 35%);transform:translate(-3px,0);animation:g1 3s infinite}
+.glitch-title::after{color:var(--pu);clip-path:polygon(0 65%,100% 65%,100% 100%,0 100%);transform:translate(3px,0);animation:g2 3s infinite}
+@keyframes g1{0%,90%,100%{transform:translate(-3px,0)}91%{transform:translate(3px,-2px)}93%{transform:translate(-3px,2px)}}
+@keyframes g2{0%,88%,100%{transform:translate(3px,0)}89%{transform:translate(-3px,2px)}91%{transform:translate(3px,-2px)}}
+@keyframes flicker{0%,95%,100%{opacity:1}96%{opacity:.7}98%{opacity:.85}}
+.subtitle{font-size:clamp(.7rem,2vw,1rem);color:rgba(0,245,255,.6);letter-spacing:.4em;text-transform:uppercase;margin:16px 0 48px}
+.start-btn{font-family:'Orbitron',sans-serif;font-size:1rem;letter-spacing:.3em;padding:16px 48px;background:transparent;
+ border:2px solid var(--cy);color:var(--cy);cursor:pointer;position:relative;text-transform:uppercase;transition:.3s;overflow:hidden}
+.start-btn::before{content:'';position:absolute;inset:0;background:var(--cy);transform:translateX(-100%);transition:transform .3s;z-index:-1}
+.start-btn:hover::before{transform:translateX(0)}
+.start-btn:hover{color:var(--dk);box-shadow:0 0 40px var(--cy)}
+.modes-title{font-family:'Orbitron',sans-serif;font-size:clamp(1rem,3vw,1.8rem);color:var(--cy);letter-spacing:.3em;
+ text-transform:uppercase;margin-bottom:40px;text-shadow:0 0 20px var(--cy)}
+.mode-cards{display:flex;gap:24px;flex-wrap:wrap;justify-content:center;max-width:1100px;padding:0 20px}
+.mode-card{width:280px;padding:30px 24px;border:1px solid rgba(0,245,255,.25);background:rgba(0,5,20,.8);
+ backdrop-filter:blur(12px);cursor:pointer;transition:.3s}
+.mode-card:hover{border-color:rgba(0,245,255,.7);transform:translateY(-4px);box-shadow:0 8px 40px rgba(0,245,255,.2)}
+.card-icon{font-size:2.5rem;margin-bottom:14px;display:block}
+.card-title{font-family:'Orbitron',sans-serif;font-size:1.1rem;font-weight:700;letter-spacing:.15em;margin-bottom:8px}
+.mode-card[data-mode=string] .card-title{color:var(--pu)}
+.mode-card[data-mode=draw] .card-title{color:var(--gr)}
+.mode-card[data-mode=fluid] .card-title{color:var(--cy)}
+.card-desc{font-size:.75rem;color:rgba(255,255,255,.5);line-height:1.7}
+#hud{position:fixed;inset:0;z-index:50;pointer-events:none;display:none}
+.corner{position:absolute;width:50px;height:50px}
+.corner-tl{top:20px;left:20px;border-top:1px solid rgba(0,245,255,.6);border-left:1px solid rgba(0,245,255,.6)}
+.corner-tr{top:20px;right:20px;border-top:1px solid rgba(0,245,255,.6);border-right:1px solid rgba(0,245,255,.6)}
+.corner-bl{bottom:20px;left:20px;border-bottom:1px solid rgba(0,245,255,.6);border-left:1px solid rgba(0,245,255,.6)}
+.corner-br{bottom:20px;right:20px;border-bottom:1px solid rgba(0,245,255,.6);border-right:1px solid rgba(0,245,255,.6)}
+#hud-mode-label{position:absolute;top:0;left:50%;transform:translateX(-50%);font-family:'Orbitron',sans-serif;
+ font-size:.65rem;letter-spacing:.5em;color:var(--cy);text-transform:uppercase;padding:8px 28px;
+ border-bottom:1px solid rgba(0,245,255,.25);background:rgba(0,0,0,.55);backdrop-filter:blur(8px);white-space:nowrap}
+#hud-dash{position:absolute;bottom:0;left:50%;transform:translateX(-50%);display:flex;align-items:center;
+ background:rgba(2,2,15,.85);backdrop-filter:blur(16px);border-top:1px solid rgba(0,245,255,.2);
+ border-radius:12px 12px 0 0;overflow:hidden;pointer-events:all;max-width:98vw;flex-wrap:wrap}
+.ds{display:flex;align-items:center;gap:10px;padding:9px 16px;border-right:1px solid rgba(0,245,255,.1)}
+.ds:last-child{border-right:none}
+.dl{font-size:.55rem;letter-spacing:.3em;color:rgba(0,245,255,.35);text-transform:uppercase;margin-bottom:4px;display:block}
+.dc{display:flex;flex-direction:column}
+#dash-swatches{display:flex;gap:6px}
+.c-swatch{width:16px;height:16px;border-radius:50%;cursor:pointer;border:1.5px solid transparent;transition:.18s;box-shadow:0 0 5px currentColor}
+.c-swatch.active{transform:scale(1.35);border-color:#fff}
+.hud-btn{font-family:'Share Tech Mono',monospace;font-size:.6rem;letter-spacing:.18em;padding:7px 12px;background:transparent;
+ border:1px solid rgba(0,245,255,.3);color:rgba(0,245,255,.75);cursor:pointer;text-transform:uppercase;transition:.18s;border-radius:4px;white-space:nowrap}
+.hud-btn:hover{background:rgba(0,245,255,.1);border-color:var(--cy);color:#fff}
+.hud-btn.danger{border-color:rgba(255,0,110,.4);color:rgba(255,0,110,.7)}
+.hud-btn.on{border-color:#ffe000;color:#ffe000;box-shadow:0 0 10px rgba(255,224,0,.3)}
+select.hud-sel{font-family:'Share Tech Mono',monospace;font-size:.65rem;background:rgba(0,20,30,.9);color:var(--cy);
+ border:1px solid rgba(0,245,255,.3);border-radius:4px;padding:4px 6px;cursor:pointer;outline:none}
+input[type=range]{-webkit-appearance:none;width:80px;height:3px;background:rgba(0,245,255,.2);border-radius:2px;outline:none;cursor:pointer}
+input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:12px;height:12px;border-radius:50%;background:var(--cy);box-shadow:0 0 8px var(--cy)}
+#hand-ind{display:flex;gap:10px}
+.hand-dot{width:8px;height:8px;border-radius:50%;background:rgba(0,245,255,.15);border:1px solid rgba(0,245,255,.3);transition:.3s}
+.hand-dot.active{background:var(--cy);box-shadow:0 0 10px var(--cy)}
+.hand-dot.pen{background:var(--gr);box-shadow:0 0 12px var(--gr);border-color:var(--gr)}
+#status-bar{position:absolute;bottom:64px;left:50%;transform:translateX(-50%);font-size:.62rem;
+ color:rgba(0,245,255,.45);letter-spacing:.25em;white-space:nowrap}
+#gesture-hint{position:absolute;bottom:88px;left:50%;transform:translateX(-50%);font-size:.7rem;color:#fff;
+ letter-spacing:.15em;padding:6px 18px;border:1px solid rgba(255,255,255,.15);background:rgba(0,0,0,.6);
+ border-radius:4px;opacity:0;transition:opacity .4s;white-space:nowrap}
+#gesture-hint.show{opacity:1}
+#mode-flash{position:fixed;inset:0;z-index:100;background:var(--cy);opacity:0;pointer-events:none;transition:opacity .15s}
+#err{position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);z-index:200;color:var(--pk);text-align:center;
+ font-size:.85rem;letter-spacing:.1em;line-height:2;display:none;padding:20px}
+</style>
 </head>
 <body>
 
-<!-- Mode flash transition -->
 <div id="mode-flash"></div>
-
-<!-- Always-on video + canvases -->
 <video id="video" autoplay playsinline muted></video>
 <canvas id="draw-canvas"></canvas>
-<canvas id="trail-canvas"></canvas>
 <canvas id="overlay-canvas"></canvas>
+<div id="err"></div>
 
-<!-- ── LANDING PAGE ── -->
 <div class="page" id="page-landing">
   <div class="landing-bg"></div>
   <div class="glitch-title" data-text="LUMINARY">LUMINARY</div>
@@ -264,925 +104,453 @@
   <button class="start-btn" id="btn-launch">[ INITIALIZE ]</button>
 </div>
 
-<!-- ── MODE SELECT PAGE ── -->
 <div class="page hidden" id="page-modes">
   <div class="modes-title">// Select Interface Mode</div>
   <div class="mode-cards">
     <div class="mode-card" data-mode="string">
-      <span class="card-icon">🕸</span>
+      <span class="card-icon">⚡</span>
       <div class="card-title">Neural Web</div>
-      <div class="card-desc">Glowing strings connect your fingertips across both hands. Physics-driven tension lines glow brighter as fingers approach each other.</div>
-      <span class="card-badge">Both Hands</span>
+      <div class="card-desc">Arc lightning fires between every fingertip. Move fast for shockwaves; hold both palms up to charge a plasma beam.</div>
     </div>
     <div class="mode-card" data-mode="draw">
       <span class="card-icon">✦</span>
       <div class="card-title">Mirror Draw</div>
-      <div class="card-desc">Paint with light in the air. Right hand mirrors left — creating perfect symmetric neon mandalas. Pinch to erase. Peace sign to cycle colors.</div>
-      <span class="card-badge">Gesture Control</span>
+      <div class="card-desc">Paints only while you hold the pen gesture — pick which finger is the brush. ✌ cycles colour. Double 👍👍 erases.</div>
     </div>
     <div class="mode-card" data-mode="fluid">
       <span class="card-icon">🌊</span>
       <div class="card-title">Fluid Ink</div>
-      <div class="card-desc">Your hands disturb a living ink simulation. Fingers leave glowing vapor trails that drift, curl and dissipate like smoke in liquid.</div>
-      <span class="card-badge">New</span>
+      <div class="card-desc">Your hands disturb a living ink simulation. Fingers leave vapour trails that drift, curl and dissipate.</div>
     </div>
   </div>
 </div>
 
-<!-- ── HUD (visible during active mode) ── -->
-<div id="hud" style="display:none;">
-  <div class="corner corner-tl"></div>
-  <div class="corner corner-tr"></div>
-  <div class="corner corner-bl"></div>
-  <div class="corner corner-br"></div>
-
+<div id="hud">
+  <div class="corner corner-tl"></div><div class="corner corner-tr"></div>
+  <div class="corner corner-bl"></div><div class="corner corner-br"></div>
   <div id="hud-mode-label">— MODE —</div>
-
-  <!-- hidden old controls (kept for JS compat) -->
-  <div id="hud-controls" style="display:none;">
-    <button class="hud-btn" id="hud-back">◀ MODES</button>
-    <button class="hud-btn" id="hud-multi">MULTI OFF</button>
-    <button class="hud-btn danger" id="hud-clear">CLEAR</button>
-    <button class="hud-btn" id="hud-save">SAVE</button>
-  </div>
-  <div id="color-bar"></div>
-  <div id="brush-wrap">
-    <label>SIZE</label>
-    <input type="range" id="brush-slider" min="1" max="20" value="4" style="display:none"/>
-    <span id="brush-val" style="display:none">4</span>
-  </div>
-
-  <!-- ── BOTTOM DASHBOARD ── -->
   <div id="hud-dash">
-
-    <!-- Back -->
-    <div class="dash-section">
-      <button class="hud-btn" id="dash-back">◀ EXIT</button>
-    </div>
-
-    <!-- Divider: Colors -->
-    <div class="dash-section">
-      <div class="dash-col">
-        <span class="dash-label">Color</span>
-        <div id="dash-swatches"></div>
-      </div>
-    </div>
-
-    <!-- Multi toggle -->
-    <div class="dash-section">
-      <button class="hud-btn" id="dash-multi">MULTI</button>
-    </div>
-
-    <!-- Brush size -->
-    <div class="dash-section">
-      <div class="dash-col">
-        <span class="dash-label">Size &nbsp;<span id="dash-brush-val">4</span>px</span>
-        <input type="range" id="dash-brush" min="1" max="20" value="4"
-          style="-webkit-appearance:none;width:90px;height:3px;background:rgba(0,245,255,0.2);border-radius:2px;outline:none;cursor:pointer;"/>
-      </div>
-    </div>
-
-    <!-- Hand indicators -->
-    <div class="dash-section">
-      <div class="dash-col">
-        <span class="dash-label">Hands</span>
-        <div id="hand-indicators">
-          <div class="hand-dot" id="hand-dot-0"></div>
-          <div class="hand-dot" id="hand-dot-1"></div>
-        </div>
-      </div>
-    </div>
-
-    <!-- Actions -->
-    <div class="dash-section">
-      <button class="hud-btn danger" id="dash-clear">CLEAR</button>
-    </div>
-    <div class="dash-section">
-      <button class="hud-btn" id="dash-save">SAVE</button>
-    </div>
-
+    <div class="ds"><button class="hud-btn" id="dash-back">◀ EXIT</button></div>
+    <div class="ds"><div class="dc"><span class="dl">Colour</span><div id="dash-swatches"></div></div></div>
+    <div class="ds" id="pen-section"><div class="dc"><span class="dl">Pen</span>
+      <select class="hud-sel" id="dash-pen">
+        <option value="8">Index</option><option value="12">Middle</option>
+        <option value="16">Ring</option><option value="20">Pinky</option>
+        <option value="4">Thumb</option><option value="pinch">Pinch</option>
+      </select></div></div>
+    <div class="ds" id="mirror-section"><button class="hud-btn on" id="dash-mirror">MIRROR</button></div>
+    <div class="ds"><button class="hud-btn" id="dash-multi">MULTI</button></div>
+    <div class="ds"><div class="dc"><span class="dl">Size <span id="dash-bv">4</span>px</span>
+      <input type="range" id="dash-brush" min="1" max="20" value="4"/></div></div>
+    <div class="ds"><div class="dc"><span class="dl">Hands</span>
+      <div id="hand-ind"><div class="hand-dot" id="hd0"></div><div class="hand-dot" id="hd1"></div></div></div></div>
+    <div class="ds"><button class="hud-btn danger" id="dash-clear">CLEAR</button></div>
+    <div class="ds"><button class="hud-btn" id="dash-save">SAVE</button></div>
   </div>
-
   <div id="gesture-hint"></div>
   <div id="status-bar">AWAITING HANDS</div>
 </div>
 
-<!-- MediaPipe CDN -->
-<script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
-<script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js" crossorigin="anonymous"></script>
-<script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js" crossorigin="anonymous"></script>
-
+<script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils@0.3.1675466862/camera_utils.js" crossorigin="anonymous"></script>
+<script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands@0.4.1675469240/hands.js" crossorigin="anonymous"></script>
 <script>
+const TIPS=[4,8,12,16,20];
+const PALETTE=[{n:'Cyan',h:'#00f5ff'},{n:'Purple',h:'#bf00ff'},{n:'Pink',h:'#ff006e'},
+ {n:'Green',h:'#00ff88'},{n:'Orange',h:'#ff6600'},{n:'Yellow',h:'#ffe000'},{n:'White',h:'#f8fafc'}];
 
-// ── Constants & State ─────────────────────────────────────────────────────
-const FINGERTIPS = [4, 8, 12, 16, 20];
-const PALETTE = [
-  {name:'Cyan',   hex:'#00f5ff'},
-  {name:'Purple', hex:'#bf00ff'},
-  {name:'Pink',   hex:'#ff006e'},
-  {name:'Green',  hex:'#00ff88'},
-  {name:'Orange', hex:'#ff6600'},
-  {name:'Yellow', hex:'#ffe000'},
-  {name:'White',  hex:'#f8fafc'},
-];
+let mode=null,activeColor=PALETTE[0].h,colorIndex=0,brushSize=4,multi=false,mirrorOn=true;
+let penChoice='8',handsData=[],lastPen=[null,null],hueWheel=0;
+let fluidP=[],sparks=[],waves=[],prevTips=[],springs={};
+let lastGesture=0,charge=0;
+const MAXP=1800;
 
-let currentMode = null; // 'string' | 'draw' | 'fluid'
-let activeColor = PALETTE[0].hex;
-let brushSize = 4;
-let handsData = [];
-let lastDrawPts = [null, null];
-let multiColor = false;  // rainbow/multicolor toggle
+const video=document.getElementById('video');
+const dC=document.getElementById('draw-canvas'),oC=document.getElementById('overlay-canvas');
+const d=dC.getContext('2d'),o=oC.getContext('2d');
+function resize(){const w=innerWidth,h=innerHeight;[dC,oC].forEach(c=>{c.width=w;c.height=h})}
+resize();addEventListener('resize',()=>{resize();fluidP=[]});
 
-// Fluid ink particles
-let fluidParticles = [];
-const MAX_PARTICLES = 1800;
+// ── helpers ───────────────────────────────────────────────
+const lc=l=>({x:(1-l.x)*oC.width,y:l.y*oC.height});
+function hexRgb(h){return{r:parseInt(h.slice(1,3),16),g:parseInt(h.slice(3,5),16),b:parseInt(h.slice(5,7),16)}}
+function hexRgba(h,a){const c=hexRgb(h);return`rgba(${c.r},${c.g},${c.b},${a})`}
+function hexHue(h){const c=hexRgb(h),r=c.r/255,g=c.g/255,b=c.b/255,mx=Math.max(r,g,b),df=mx-Math.min(r,g,b);
+ if(!df)return 0;let x=mx===r?60*(((g-b)/df)%6):mx===g?60*((b-r)/df+2):60*((r-g)/df+4);return x<0?x+360:x}
+const hsl=(h,s=100,l=60)=>`hsl(${h},${s}%,${l}%)`;
+function glow(c,col,b){c.shadowColor=col;c.shadowBlur=b}
+function noGlow(c){c.shadowColor='transparent';c.shadowBlur=0}
+function hint(m){const e=document.getElementById('gesture-hint');e.textContent=m;e.classList.add('show');
+ clearTimeout(e._t);e._t=setTimeout(()=>e.classList.remove('show'),1500)}
 
-// Spark particles at fingertip anchors (string mode)
-let sparkParticles = [];
-
-// Magical string palette — cycles through blue→purple→pink→gold
-// Used always in string mode (regardless of activeColor/multiColor)
-const MAGIC_HUES = [210, 260, 300, 340, 30, 55]; // blue, violet, purple, pink, orange, gold
-
-// Physics strings — full spring simulation per string segment
-// key: "i-j"  value: {ox,oy,vx,vy,  prevAx,prevAy}
-let stringPhysics = {};
-// Previous tip positions for velocity tracking
-let prevTipPositions = [];
-
-// Gesture debounce
-let lastGestureTime = 0;
-let colorIndex = 0;
-
-// Rolling hue for multicolor (degrees, 0-360)
-let hueWheel = 0;
-
-// Returns a color: if multiColor is on, steps the hue wheel; else returns activeColor
-function pickColor(step = 18) {
-  if (!multiColor) return activeColor;
-  hueWheel = (hueWheel + step) % 360;
-  return `hsl(${hueWheel},100%,60%)`;
+// ── gestures ──────────────────────────────────────────────
+const up=(l,t,p)=>l[t].y<l[p].y;
+const fs=l=>({i:up(l,8,6),m:up(l,12,10),r:up(l,16,14),p:up(l,20,18)});
+function isPeace(l){const f=fs(l);return f.i&&f.m&&!f.r&&!f.p}
+function isThumbsUp(l){const f=fs(l);
+ if(f.i||f.m||f.r||f.p)return false;
+ return l[4].y<l[3].y&&l[3].y<l[2].y&&(l[0].y-l[4].y)>0.12}
+function pinchDist(l){const a=lc(l[4]),b=lc(l[8]);return Math.hypot(b.x-a.x,b.y-a.y)}
+// pen is DOWN only while the chosen finger is extended and the hand is a deliberate pose
+function penPoint(l){
+ if(penChoice==='pinch')return pinchDist(l)<45?lc(l[8]):null;
+ const idx=+penChoice,f=fs(l),n=[f.i,f.m,f.r,f.p].filter(Boolean).length;
+ if(idx===4){ // thumb: thumb out, all fingers curled
+  return(n===0&&l[4].y<l[3].y)?lc(l[4]):null;
+ }
+ const map={8:f.i,12:f.m,16:f.r,20:f.p};
+ if(!map[idx])return null;
+ if(n>2)return null;            // open palm = hover, no paint
+ return lc(l[idx]);
 }
 
-// HSL string helper
-function hsl(h, s=100, l=60) { return `hsl(${h},${s}%,${l}%)`; }
-
-// ── DOM refs ───────────────────────────────────────────────────────────────
-const video         = document.getElementById('video');
-const drawCanvas    = document.getElementById('draw-canvas');
-const trailCanvas   = document.getElementById('trail-canvas');
-const overlayCanvas = document.getElementById('overlay-canvas');
-const dCtx          = drawCanvas.getContext('2d');
-const tCtx          = trailCanvas.getContext('2d');
-const oCtx          = overlayCanvas.getContext('2d');
-
-// ── Canvas resize ──────────────────────────────────────────────────────────
-function resizeCanvases() {
-  const w = window.innerWidth, h = window.innerHeight;
-  [drawCanvas, trailCanvas, overlayCanvas].forEach(c => { c.width = w; c.height = h; });
-}
-resizeCanvases();
-window.addEventListener('resize', () => { resizeCanvases(); fluidParticles = []; });
-
-// ── Build color swatches ───────────────────────────────────────────────────
-const colorBar = document.getElementById('color-bar'); // kept but hidden
-const dashSwatches = document.getElementById('dash-swatches');
-PALETTE.forEach((c, i) => {
-  // Build in both places (old hidden bar + new dash)
-  [colorBar, dashSwatches].forEach(container => {
-    const el = document.createElement('div');
-    el.className = 'c-swatch' + (i === 0 ? ' active' : '');
-    el.style.background = c.hex;
-    el.style.color = c.hex;
-    el.title = c.name;
-    el.addEventListener('click', () => {
-      document.querySelectorAll('.c-swatch').forEach(s => s.classList.remove('active'));
-      document.querySelectorAll('.c-swatch').forEach(s => {
-        if (s.title === c.name) s.classList.add('active');
-      });
-      activeColor = c.hex;
-      colorIndex = i;
-    });
-    container.appendChild(el);
-  });
-});
-
-// ── Brush slider — wire BOTH old hidden + new dash slider ────────────────
-const brushSlider  = document.getElementById('brush-slider');
-const brushVal     = document.getElementById('brush-val');
-const dashBrush    = document.getElementById('dash-brush');
-const dashBrushVal = document.getElementById('dash-brush-val');
-
-function setBrush(val) {
-  brushSize = val;
-  brushSlider.value = val;
-  dashBrush.value   = val;
-  brushVal.textContent     = val;
-  dashBrushVal.textContent = val;
-}
-brushSlider.addEventListener('input', () => setBrush(parseInt(brushSlider.value, 10)));
-dashBrush.addEventListener('input',   () => setBrush(parseInt(dashBrush.value, 10)));
-
-// Style the new slider thumb via injected style
-const sliderStyle = document.createElement('style');
-sliderStyle.textContent = `
-  #dash-brush::-webkit-slider-thumb{
-    -webkit-appearance:none;width:12px;height:12px;border-radius:50%;
-    background:var(--neon-cyan);box-shadow:0 0 8px var(--neon-cyan);cursor:pointer;
-  }
-`;
-document.head.appendChild(sliderStyle);
-
-// ── Utility: hex → rgba ────────────────────────────────────────────────────
-function hexToRgba(hex, a) {
-  const r=parseInt(hex.slice(1,3),16), g=parseInt(hex.slice(3,5),16), b=parseInt(hex.slice(5,7),16);
-  return `rgba(${r},${g},${b},${a})`;
-}
-function hexToRgb(hex) {
-  return {r:parseInt(hex.slice(1,3),16), g:parseInt(hex.slice(3,5),16), b:parseInt(hex.slice(5,7),16)};
+// ══════════════════════════════════════════════════════════
+// NEURAL WEB — arc lightning
+// ══════════════════════════════════════════════════════════
+function bolt(ctx,a,b,seed,amp,segs,ox,oy){
+ ctx.moveTo(a.x,a.y);
+ const dx=b.x-a.x,dy=b.y-a.y,len=Math.hypot(dx,dy)||1,nx=-dy/len,ny=dx/len;
+ for(let s=1;s<segs;s++){
+  const t=s/segs,env=Math.sin(t*Math.PI);
+  const n=Math.sin(t*11+seed)*.55+Math.sin(t*27+seed*2.7)*.3+(Math.random()-.5)*.5;
+  const off=n*amp*env;
+  ctx.lineTo(a.x+dx*t+nx*off+ox*env,a.y+dy*t+ny*off+oy*env);
+ }
+ ctx.lineTo(b.x,b.y);
 }
 
-// ── Glow helper ────────────────────────────────────────────────────────────
-function glow(ctx, color, blur) { ctx.shadowColor=color; ctx.shadowBlur=blur; }
-function noGlow(ctx)            { ctx.shadowColor='transparent'; ctx.shadowBlur=0; }
+function neuralWeb(hands){
+ const W=oC.width,H=oC.height,now=performance.now()*.001;
+ d.globalCompositeOperation='destination-out';
+ d.fillStyle='rgba(0,0,0,0.30)';d.fillRect(0,0,W,H);
+ d.globalCompositeOperation='source-over';
+ o.clearRect(0,0,W,H);
 
-// ── Landmark → canvas coords (mirrored) ──────────────────────────────────
-function lc(lm) {
-  return { x: (1 - lm.x) * overlayCanvas.width, y: lm.y * overlayCanvas.height };
+ if(!hands.length){prevTips=[];charge*=.9;updateSparks();updateWaves();return}
+
+ const tips=[];
+ for(const l of hands)for(const i of TIPS)tips.push(lc(l[i]));
+ const vel=tips.map((p,i)=>prevTips[i]?{x:p.x-prevTips[i].x,y:p.y-prevTips[i].y}:{x:0,y:0});
+ prevTips=tips.map(p=>({...p}));
+ const maxD=Math.hypot(W,H),reach=maxD*.55,baseHue=multi?null:hexHue(activeColor);
+
+ const arcs=[];
+ for(let i=0;i<tips.length;i++)for(let j=i+1;j<tips.length;j++){
+  const a=tips[i],b=tips[j],dist=Math.hypot(b.x-a.x,b.y-a.y);
+  if(dist>reach)continue;
+  const op=Math.max(.15,1-dist/reach);
+  const k=i+'-'+j;
+  const s=springs[k]||(springs[k]={ox:0,oy:0,vx:0,vy:0});
+  const av={x:(vel[i].x+vel[j].x)*.5,y:(vel[i].y+vel[j].y)*.5};
+  const sp=Math.hypot(av.x,av.y);
+  s.vx+=-s.ox*.08+av.x*.5;s.vy+=-s.oy*.08+av.y*.5;
+  s.vx*=.86;s.vy*=.86;s.ox+=s.vx;s.oy+=s.vy;
+  const cl=v=>Math.max(-70,Math.min(70,v));s.ox=cl(s.ox);s.oy=cl(s.oy);
+  const hue=multi?(hueWheel+i*32+j*47)%360:(baseHue+(i*7+j*5))%360;
+  arcs.push({a,b,op,hue,amp:Math.min(10+sp*1.4+dist*.06,60),
+   segs:Math.max(8,Math.min(20,Math.round(dist/26))),ox:s.ox,oy:s.oy,seed:i*3.1+j*1.7+now*7});
+ }
+ if(multi)hueWheel=(hueWheel+1.4)%360;
+
+ d.globalCompositeOperation='lighter';d.lineCap='round';
+
+ // aura
+ d.shadowBlur=0;
+ for(const A of arcs){d.beginPath();bolt(d,A.a,A.b,A.seed,A.amp,A.segs,A.ox,A.oy);
+  d.strokeStyle=`hsla(${A.hue},100%,55%,${A.op*.14})`;d.lineWidth=(brushSize*4+20)*A.op;d.stroke()}
+ // coloured bolt
+ for(const A of arcs){d.beginPath();bolt(d,A.a,A.b,A.seed,A.amp,A.segs,A.ox,A.oy);
+  d.strokeStyle=`hsla(${A.hue},100%,66%,${A.op*.95})`;d.lineWidth=(brushSize*.9+3.5)*A.op;
+  d.shadowColor=hsl(A.hue,100,62);d.shadowBlur=20;d.stroke()}
+ d.shadowBlur=0;
+ // white core + forks
+ for(const A of arcs){
+  d.beginPath();bolt(d,A.a,A.b,A.seed+.4,A.amp*.55,A.segs,A.ox*.6,A.oy*.6);
+  d.strokeStyle=`rgba(255,255,255,${A.op*.9})`;d.lineWidth=Math.max(.8,A.op*1.8);d.stroke();
+  if(Math.random()<.22){
+   const t=.3+Math.random()*.4,mx=A.a.x+(A.b.x-A.a.x)*t,my=A.a.y+(A.b.y-A.a.y)*t;
+   const ang=Math.random()*6.28,L=25+Math.random()*55;
+   d.beginPath();bolt(d,{x:mx,y:my},{x:mx+Math.cos(ang)*L,y:my+Math.sin(ang)*L},Math.random()*9,14,6,0,0);
+   d.strokeStyle=`hsla(${A.hue},100%,80%,${A.op*.55})`;d.lineWidth=1.3;d.stroke();
+  }
+ }
+ d.globalCompositeOperation='source-over';
+
+ // plasma beam between two palms
+ if(hands.length>1){
+  const p1=lc(hands[0][9]),p2=lc(hands[1][9]);
+  const pd=Math.hypot(p2.x-p1.x,p2.y-p1.y);
+  charge=Math.min(1,charge+(pd<W*.55?.035:-.06));
+  if(charge>.02){
+   const hue=multi?hueWheel:baseHue;
+   o.globalCompositeOperation='lighter';
+   for(let k=0;k<3;k++){
+    o.beginPath();bolt(o,p1,p2,now*13+k*2.5,34*charge,22,0,0);
+    o.strokeStyle=`hsla(${(hue+k*22)%360},100%,${60+k*10}%,${charge*(.5-k*.12)})`;
+    o.lineWidth=(26-k*8)*charge;o.shadowColor=hsl(hue,100,65);o.shadowBlur=28*charge;o.stroke();
+   }
+   o.beginPath();bolt(o,p1,p2,now*19,16*charge,24,0,0);
+   o.strokeStyle=`rgba(255,255,255,${charge*.95})`;o.lineWidth=3*charge;o.shadowBlur=0;o.stroke();
+   [p1,p2].forEach(p=>{const g=o.createRadialGradient(p.x,p.y,0,p.x,p.y,70*charge);
+    g.addColorStop(0,`rgba(255,255,255,${charge*.85})`);
+    g.addColorStop(.35,`hsla(${hue},100%,65%,${charge*.5})`);
+    g.addColorStop(1,'rgba(0,0,0,0)');
+    o.beginPath();o.arc(p.x,p.y,70*charge,0,6.29);o.fillStyle=g;o.fill();
+    for(let r=0;r<2;r++){o.beginPath();o.arc(p.x,p.y,(26+r*16)*charge,now*(2+r)%6.29,now*(2+r)%6.29+2.2);
+     o.strokeStyle=`hsla(${hue},100%,80%,${charge*.6})`;o.lineWidth=2;o.stroke()}});
+   o.globalCompositeOperation='source-over';
+  }
+ }else charge*=.88;
+
+ // shockwaves + sparks on fast motion
+ tips.forEach((p,i)=>{
+  const sp=Math.hypot(vel[i].x,vel[i].y);
+  if(sp>26&&waves.length<14)waves.push({x:p.x,y:p.y,r:6,life:1,hue:multi?(hueWheel+i*40)%360:baseHue});
+  if(sp<2)return;
+  const hue=multi?(hueWheel+i*50)%360:(baseHue+i*14)%360;
+  for(let k=0;k<Math.min(5,sp*.4);k++){
+   const ang=Math.random()*6.28,s2=Math.random()*4+1;
+   sparks.push({x:p.x,y:p.y,vx:Math.cos(ang)*s2+vel[i].x*.3,vy:Math.sin(ang)*s2+vel[i].y*.3,
+    hue:(hue+Math.random()*50-25+360)%360,life:1,decay:.045+Math.random()*.04,size:Math.random()*2.6+.9});
+  }
+ });
+ if(sparks.length>420)sparks.splice(0,sparks.length-420);
+
+ updateWaves();updateSparks();anchors(tips,now,baseHue);
 }
 
-// ── Gesture detection ──────────────────────────────────────────────────────
-function getPinchDist(lm) {
-  const t = lc(lm[4]), i = lc(lm[8]);
-  return Math.hypot(i.x - t.x, i.y - t.y);
+function updateWaves(){
+ if(!waves.length)return;
+ o.globalCompositeOperation='lighter';o.shadowBlur=0;
+ for(let i=waves.length-1;i>=0;i--){const w=waves[i];
+  w.r+=13;w.life-=.045;
+  if(w.life<=0){waves.splice(i,1);continue}
+  o.beginPath();o.arc(w.x,w.y,w.r,0,6.29);
+  o.strokeStyle=`hsla(${w.hue},100%,72%,${w.life*.55})`;o.lineWidth=3*w.life;o.stroke();
+  o.beginPath();o.arc(w.x,w.y,w.r*.62,0,6.29);
+  o.strokeStyle=`rgba(255,255,255,${w.life*.3})`;o.lineWidth=1.4;o.stroke();
+ }
+ o.globalCompositeOperation='source-over';
 }
-function isFist(lm) {
-  // All fingertips below their MCP joints
-  const tips = [8,12,16,20], mcps = [5,9,13,17];
-  return tips.every((t,i) => lm[t].y > lm[mcps[i]].y);
+function updateSparks(){
+ if(!sparks.length)return;
+ o.globalCompositeOperation='lighter';o.shadowBlur=0;
+ for(let i=sparks.length-1;i>=0;i--){const p=sparks[i];
+  p.x+=p.vx;p.y+=p.vy;p.vx*=.92;p.vy=p.vy*.92+.07;p.life-=p.decay;
+  if(p.life<=0){sparks.splice(i,1);continue}
+  o.beginPath();o.arc(p.x,p.y,p.size*p.life,0,6.29);
+  o.fillStyle=`hsla(${p.hue},100%,88%,${p.life*.9})`;o.fill();
+ }
+ o.globalCompositeOperation='source-over';
 }
-function isPeace(lm) {
-  // Index & middle extended, others curled
-  const indexUp  = lm[8].y < lm[6].y;
-  const middleUp = lm[12].y < lm[10].y;
-  const ringDown = lm[16].y > lm[14].y;
-  const pinkyDown= lm[20].y > lm[18].y;
-  return indexUp && middleUp && ringDown && pinkyDown;
-}
-
-function showGesture(msg) {
-  const el = document.getElementById('gesture-hint');
-  el.textContent = msg;
-  el.classList.add('show');
-  setTimeout(() => el.classList.remove('show'), 1500);
-}
-
-// ── MODE: Neural Web — performant magical strings ─────────────────────────
-function drawNeuralWeb(hands) {
-  const W = overlayCanvas.width, H = overlayCanvas.height;
-  const now = performance.now() * 0.001;
-
-  // Fade draw canvas (motion trail) — transparent, not black
-  dCtx.globalCompositeOperation = 'destination-out';
-  dCtx.fillStyle = 'rgba(0,0,0,0.35)';
-  dCtx.fillRect(0, 0, W, H);
-  dCtx.globalCompositeOperation = 'source-over';
-  oCtx.clearRect(0, 0, W, H);
-
-  if (!hands || hands.length === 0) {
-    prevTipPositions = [];
-    updateSparks();
-    return;
-  }
-
-  const tips = [];
-  for (const lms of hands) {
-    for (const idx of FINGERTIPS) tips.push(lc(lms[idx]));
-  }
-  const maxD = Math.hypot(W, H);
-
-  const tipVels = tips.map((pt, i) => {
-    const prev = prevTipPositions[i];
-    if (!prev) return {vx:0, vy:0};
-    return {vx: pt.x - prev.x, vy: pt.y - prev.y};
-  });
-  prevTipPositions = tips.map(p => ({...p}));
-
-  // ── Collect all active string paths first ────────────────────────────
-  // Build path data so we can batch-draw by layer (avoids shadowBlur switching cost)
-  const strings = [];
-
-  for (let i = 0; i < tips.length; i++) {
-    for (let j = i + 1; j < tips.length; j++) {
-      const a = tips[i], b = tips[j];
-      const dist  = Math.hypot(b.x - a.x, b.y - a.y);
-      const op    = Math.max(0.28, 1 - dist / (maxD * 0.9));
-      if (op < 0.03) continue;
-
-      // Physics spring
-      const key = `${i}-${j}`;
-      if (!stringPhysics[key]) stringPhysics[key] = {ox:0,oy:0,vx:0,vy:0,ox2:0,oy2:0,vx2:0,vy2:0};
-      const s     = stringPhysics[key];
-      const avgVx = (tipVels[i].vx + tipVels[j].vx) * 0.5;
-      const avgVy = (tipVels[i].vy + tipVels[j].vy) * 0.5;
-      const speed = Math.hypot(avgVx, avgVy);
-      const dx = b.x-a.x, dy = b.y-a.y, len = Math.hypot(dx,dy)||1;
-      const nx = -dy/len, ny = dx/len;
-      const stiff = 0.055 + op*0.04, damp = 0.89;
-      const imp   = Math.min(speed*0.4, 22);
-      const vDotN = avgVx*nx + avgVy*ny;
-
-      s.vx  += (-s.ox *stiff) + vDotN*nx*imp*0.7 + (Math.random()-.5)*.2;
-      s.vy  += (-s.oy *stiff) + vDotN*ny*imp*0.7 + (Math.random()-.5)*.2;
-      s.vx  *= damp; s.vy  *= damp; s.ox += s.vx; s.oy += s.vy;
-      s.vx2 += (-s.ox2*stiff*.65) - vDotN*nx*imp*.4 + (Math.random()-.5)*.12;
-      s.vy2 += (-s.oy2*stiff*.65) - vDotN*ny*imp*.4 + (Math.random()-.5)*.12;
-      s.vx2 *= damp; s.vy2 *= damp; s.ox2 += s.vx2; s.oy2 += s.vy2;
-      const mo = 60 + speed*2;
-      const cl = v => Math.max(-mo, Math.min(mo, v));
-      s.ox=cl(s.ox); s.oy=cl(s.oy); s.ox2=cl(s.ox2); s.oy2=cl(s.oy2);
-
-      const cp1x = a.x+(b.x-a.x)/3 +s.ox,  cp1y = a.y+(b.y-a.y)/3 +s.oy;
-      const cp2x = a.x+(b.x-a.x)*2/3+s.ox2, cp2y = a.y+(b.y-a.y)*2/3+s.oy2;
-
-      // Color:
-      // • MULTI ON  → full rainbow cycling through MAGIC_HUES + hueWheel
-      // • MULTI OFF → derive hue from the selected color swatch
-      let baseHue, endHue;
-      if (multiColor) {
-        baseHue = (hueWheel + i*32 + j*53) % 360;
-        endHue  = (baseHue + 100) % 360;
-        hueWheel = (hueWheel + 1.0) % 360;
-      } else {
-        // Convert activeColor hex → hue so the color picker actually works
-        const rgb = hexToRgb(activeColor);
-        const r = rgb.r/255, g = rgb.g/255, bl = rgb.b/255;
-        const max = Math.max(r,g,bl), min = Math.min(r,g,bl), d = max - min;
-        let h = 0;
-        if (d > 0) {
-          if (max === r)      h = 60 * (((g-bl)/d) % 6);
-          else if (max === g) h = 60 * ((bl-r)/d + 2);
-          else                h = 60 * ((r-g)/d + 4);
-          if (h < 0) h += 360;
-        }
-        // Each string pair shifts the hue slightly so they're not all identical
-        baseHue = (h + (i*8 + j*5)) % 360;
-        endHue  = (baseHue + 60) % 360;
-      }
-
-      strings.push({ a, b, cp1x, cp1y, cp2x, cp2y, op, baseHue, endHue, speed });
-    }
-  }
-
-  // ── PASS 1: bloom layer — all paths, NO shadowBlur ───────────────────
-  dCtx.globalCompositeOperation = 'lighter';
-  dCtx.lineCap = 'round';
-  dCtx.shadowBlur = 0;
-  for (const s of strings) {
-    dCtx.beginPath();
-    dCtx.moveTo(s.a.x, s.a.y);
-    dCtx.bezierCurveTo(s.cp1x,s.cp1y, s.cp2x,s.cp2y, s.b.x,s.b.y);
-    dCtx.strokeStyle = `hsla(${s.baseHue},100%,55%,${s.op * 0.18})`;
-    dCtx.lineWidth   = (brushSize * 4 + 16) * s.op;
-    dCtx.stroke();
-  }
-
-  // ── PASS 2: glowing core — ONE shadowBlur pass, batch by hue group ───
-  // Setting shadowBlur once per string is unavoidable but we eliminate layers 2+3
-  for (const st of strings) {
-    // Gradient: two-stop only (fast)
-    const grad = dCtx.createLinearGradient(st.a.x, st.a.y, st.b.x, st.b.y);
-    grad.addColorStop(0,   `hsla(${st.baseHue},100%,68%,${st.op * 0.95})`);
-    grad.addColorStop(0.45,`rgba(255,255,255,${st.op * 0.9})`);
-    grad.addColorStop(1,   `hsla(${st.endHue}, 100%,68%,${st.op * 0.95})`);
-
-    dCtx.beginPath();
-    dCtx.moveTo(st.a.x, st.a.y);
-    dCtx.bezierCurveTo(st.cp1x,st.cp1y, st.cp2x,st.cp2y, st.b.x,st.b.y);
-    dCtx.strokeStyle = grad;
-    dCtx.lineWidth   = (brushSize * 0.8 + 3) * st.op;
-    dCtx.shadowColor = `hsl(${st.baseHue},100%,65%)`;
-    dCtx.shadowBlur  = 18;           // fixed value — no per-frame multiply
-    dCtx.stroke();
-  }
-  dCtx.shadowBlur = 0;
-
-  // ── PASS 3: white fiber spine — batched single path per draw ─────────
-  // No shadowBlur here — the glow from pass 2 bleeds through visually
-  dCtx.shadowBlur = 0;
-  for (const st of strings) {
-    dCtx.beginPath();
-    dCtx.moveTo(st.a.x, st.a.y);
-    dCtx.bezierCurveTo(st.cp1x,st.cp1y, st.cp2x,st.cp2y, st.b.x,st.b.y);
-    dCtx.strokeStyle = `rgba(255,255,255,${st.op * 0.85})`;
-    dCtx.lineWidth   = Math.max(0.7, st.op * 1.5);
-    dCtx.stroke();
-  }
-
-  dCtx.globalCompositeOperation = 'source-over';
-
-  // ── Sparks — only spawn when moving, cap aggressively ────────────────
-  // Reuse the same hex→hue conversion so sparks match the picked color
-  let sparkBaseHue = 0;
-  if (!multiColor) {
-    const rgb = hexToRgb(activeColor);
-    const r=rgb.r/255, g=rgb.g/255, bl=rgb.b/255;
-    const max=Math.max(r,g,bl), d=max-Math.min(r,g,bl);
-    if (d>0) {
-      if (max===r)      sparkBaseHue=60*(((g-bl)/d)%6);
-      else if (max===g) sparkBaseHue=60*((bl-r)/d+2);
-      else              sparkBaseHue=60*((r-g)/d+4);
-      if (sparkBaseHue<0) sparkBaseHue+=360;
-    }
-  }
-  tips.forEach((pt, i) => {
-    const vel   = tipVels[i] || {vx:0, vy:0};
-    const speed = Math.hypot(vel.vx, vel.vy);
-    if (speed < 1.5) return;
-    const count = Math.min(4, Math.floor(speed * 0.35));
-    const bh    = multiColor ? (hueWheel + i*50) % 360 : (sparkBaseHue + i*15) % 360;
-    for (let k = 0; k < count; k++) {
-      const angle = Math.random() * Math.PI * 2;
-      const spd   = Math.random() * 3.5 + 0.8;
-      sparkParticles.push({
-        x: pt.x, y: pt.y,
-        vx: Math.cos(angle)*spd + vel.vx*0.25,
-        vy: Math.sin(angle)*spd + vel.vy*0.25,
-        hue: (bh + Math.random()*50 - 25 + 360) % 360,
-        life: 1.0,
-        decay: 0.05 + Math.random()*0.04,
-        size: Math.random()*2.5 + 0.8,
-      });
-    }
-  });
-  if (sparkParticles.length > 300) sparkParticles.splice(0, sparkParticles.length - 300);
-
-  updateSparks();
-  drawAnchors(tips, now);
+function anchors(tips,now,baseHue){
+ o.globalCompositeOperation='lighter';
+ tips.forEach((p,i)=>{
+  const h=((multi?(hueWheel+i*55):(baseHue+i*14))+Math.sin(now*3+i)*18+360)%360;
+  const g=o.createRadialGradient(p.x,p.y,0,p.x,p.y,26);
+  g.addColorStop(0,`hsla(${h},100%,70%,.45)`);g.addColorStop(.5,`hsla(${h},100%,60%,.15)`);
+  g.addColorStop(1,'rgba(0,0,0,0)');
+  o.beginPath();o.arc(p.x,p.y,26,0,6.29);o.fillStyle=g;o.fill();
+  const c=o.createRadialGradient(p.x,p.y,0,p.x,p.y,5);
+  c.addColorStop(0,'#fff');c.addColorStop(.5,`hsla(${h},100%,80%,.8)`);c.addColorStop(1,`hsla(${h},100%,55%,0)`);
+  o.beginPath();o.arc(p.x,p.y,5,0,6.29);o.fillStyle=c;o.fill();
+  // orbiting ring
+  o.beginPath();o.arc(p.x,p.y,11+Math.sin(now*4+i)*2,now*3+i,now*3+i+3.4);
+  o.strokeStyle=`hsla(${h},100%,80%,.55)`;o.lineWidth=1.4;o.stroke();
+ });
+ o.globalCompositeOperation='source-over';
 }
 
-// ── Spark update ──────────────────────────────────────────────────────────
-function updateSparks() {
-  if (sparkParticles.length === 0) return;
-  oCtx.globalCompositeOperation = 'lighter';
-  oCtx.shadowBlur = 0;
-  for (let k = sparkParticles.length - 1; k >= 0; k--) {
-    const p = sparkParticles[k];
-    p.x += p.vx; p.y += p.vy;
-    p.vx *= 0.92; p.vy = p.vy * 0.92 + 0.06;
-    p.life -= p.decay;
-    if (p.life <= 0) { sparkParticles.splice(k, 1); continue; }
-    const r = p.size * p.life;
-    // Simple bright dot — no shadowBlur (perf)
-    oCtx.beginPath();
-    oCtx.arc(p.x, p.y, r, 0, Math.PI * 2);
-    oCtx.fillStyle = `hsla(${p.hue},100%,88%,${p.life * 0.9})`;
-    oCtx.fill();
+// ══════════════════════════════════════════════════════════
+// MIRROR DRAW — gesture-gated
+// ══════════════════════════════════════════════════════════
+function mirrorDraw(hands){
+ o.clearRect(0,0,oC.width,oC.height);
+ const W=oC.width,now=Date.now();
+
+ // double thumbs up (both hands) = erase
+ if(hands.length>1&&hands.every(isThumbsUp)&&now-lastGesture>900){
+  lastGesture=now;clearCanvas();hint('👍👍  ERASED');
+  o.globalCompositeOperation='lighter';
+  o.fillStyle='rgba(255,255,255,0.18)';o.fillRect(0,0,W,oC.height);
+  o.globalCompositeOperation='source-over';
+  lastPen=[null,null];return;
+ }
+
+ for(let h=0;h<Math.min(hands.length,2);h++){
+  const l=hands[h];
+  if(isPeace(l)&&now-lastGesture>700){
+   lastGesture=now;colorIndex=(colorIndex+1)%PALETTE.length;activeColor=PALETTE[colorIndex].h;
+   document.querySelectorAll('.c-swatch').forEach((s,i)=>s.classList.toggle('active',i===colorIndex));
+   hint('◈ '+PALETTE[colorIndex].n);
   }
-  oCtx.globalCompositeOperation = 'source-over';
+  const pt=penPoint(l);
+  document.getElementById('hd'+h).className='hand-dot '+(pt?'pen':'active');
+
+  if(!pt){lastPen[h]=null;const t=lc(l[8]);
+   o.beginPath();o.arc(t.x,t.y,brushSize+10,0,6.29);
+   o.strokeStyle='rgba(255,255,255,0.22)';o.setLineDash([4,5]);o.lineWidth=1.2;o.stroke();o.setLineDash([]);
+   continue}
+
+  const prev=lastPen[h];
+  if(prev){
+   const col=multi?hsl(hueWheel):activeColor;
+   if(multi)hueWheel=(hueWheel+3)%360;
+   d.lineCap='round';d.lineJoin='round';d.lineWidth=brushSize;
+   d.beginPath();d.moveTo(prev.x,prev.y);d.lineTo(pt.x,pt.y);
+   d.strokeStyle=col;glow(d,col,brushSize*2.5);d.stroke();noGlow(d);
+   if(mirrorOn){
+    d.beginPath();d.moveTo(W-prev.x,prev.y);d.lineTo(W-pt.x,pt.y);
+    d.strokeStyle=multi?hsl((hueWheel+180)%360):hexRgba(activeColor,.65);
+    glow(d,col,brushSize*2);d.stroke();noGlow(d);
+   }
+  }
+  lastPen[h]=pt;
+  const cc=multi?hsl(hueWheel):activeColor;
+  for(const cx of mirrorOn?[pt.x,W-pt.x]:[pt.x]){
+   o.beginPath();o.arc(cx,pt.y,brushSize+8,0,6.29);
+   o.strokeStyle=cc;o.lineWidth=1.8;glow(o,cc,14);o.stroke();noGlow(o);
+   o.beginPath();o.arc(cx,pt.y,3,0,6.29);o.fillStyle='#fff';glow(o,cc,16);o.fill();noGlow(o);
+  }
+ }
+ for(let h=hands.length;h<2;h++)lastPen[h]=null;
 }
 
-// ── Fingertip anchor — tight light point, no shadowBlur ──────────────────
-function drawAnchors(tips, now) {
-  oCtx.globalCompositeOperation = 'lighter';
-
-  // Derive base hue from activeColor for single-color mode
-  let pickedHue = 0;
-  if (!multiColor) {
-    const rgb = hexToRgb(activeColor);
-    const r = rgb.r/255, g = rgb.g/255, bl = rgb.b/255;
-    const max = Math.max(r,g,bl), min = Math.min(r,g,bl), d = max-min;
-    if (d > 0) {
-      if (max===r)      pickedHue = 60*(((g-bl)/d)%6);
-      else if (max===g) pickedHue = 60*((bl-r)/d+2);
-      else              pickedHue = 60*((r-g)/d+4);
-      if (pickedHue < 0) pickedHue += 360;
-    }
-  }
-
-  tips.forEach((pt, i) => {
-    const bh = multiColor
-      ? (hueWheel + i * 55) % 360
-      : (pickedHue + i * 15) % 360;
-    const h = (bh + Math.sin(now*3 + i)*20 + 360) % 360;
-
-    // Soft atmospheric glow — radial gradient, no shadow
-    const atmo = oCtx.createRadialGradient(pt.x, pt.y, 0, pt.x, pt.y, 24);
-    atmo.addColorStop(0, `hsla(${h},100%,70%,0.4)`);
-    atmo.addColorStop(0.5,`hsla(${h},100%,60%,0.15)`);
-    atmo.addColorStop(1,  'rgba(0,0,0,0)');
-    oCtx.beginPath();
-    oCtx.arc(pt.x, pt.y, 24, 0, Math.PI*2);
-    oCtx.fillStyle = atmo;
-    oCtx.fill();
-
-    // Bright core dot
-    const core = oCtx.createRadialGradient(pt.x, pt.y, 0, pt.x, pt.y, 5);
-    core.addColorStop(0,  'rgba(255,255,255,1)');
-    core.addColorStop(0.5,`hsla(${h},100%,80%,0.8)`);
-    core.addColorStop(1,  `hsla(${h},100%,55%,0)`);
-    oCtx.beginPath();
-    oCtx.arc(pt.x, pt.y, 5, 0, Math.PI*2);
-    oCtx.fillStyle = core;
-    oCtx.fill();
-  });
-  oCtx.globalCompositeOperation = 'source-over';
+// ══════════════════════════════════════════════════════════
+// FLUID INK
+// ══════════════════════════════════════════════════════════
+function spawn(x,y){
+ const col=multi?hsl((hueWheel+Math.random()*60)%360):activeColor;
+ if(multi)hueWheel=(hueWheel+1.5)%360;
+ const c=col.startsWith('#')?hexRgb(col):hslRgb(col);
+ for(let i=0;i<6;i++){const a=Math.random()*6.28,s=Math.random()*2.5+.5;
+  fluidP.push({x,y,vx:Math.cos(a)*s,vy:Math.sin(a)*s-.8,r:c.r,g:c.g,b:c.b,
+   life:1,decay:Math.random()*.012+.006,size:Math.random()*brushSize*1.2+2})}
+ if(fluidP.length>MAXP)fluidP.splice(0,fluidP.length-MAXP);
+}
+function hslRgb(s){const m=s.match(/hsl\((\d+\.?\d*),(\d+)%,(\d+)%\)/);if(!m)return{r:0,g:245,b:255};
+ const h=+m[1]/360,sa=+m[2]/100,l=+m[3]/100;
+ const q=l<.5?l*(1+sa):l+sa-l*sa,p=2*l-q;
+ const f=t=>{t=(t+1)%1;return t<1/6?p+(q-p)*6*t:t<.5?q:t<2/3?p+(q-p)*(2/3-t)*6:p};
+ return{r:Math.round(f(h+1/3)*255),g:Math.round(f(h)*255),b:Math.round(f(h-1/3)*255)}}
+function fluid(hands){
+ d.globalCompositeOperation='destination-out';
+ d.fillStyle='rgba(0,0,0,0.022)';d.fillRect(0,0,dC.width,dC.height);
+ d.globalCompositeOperation='source-over';
+ o.clearRect(0,0,oC.width,oC.height);
+ for(const l of hands)for(const i of TIPS){const p=lc(l[i]);spawn(p.x,p.y)}
+ const t=performance.now()*.0003;
+ for(let i=fluidP.length-1;i>=0;i--){const p=fluidP[i];
+  p.x+=p.vx;p.y+=p.vy;p.vx*=.97;p.vy*=.97;
+  p.vx+=Math.sin(p.y*.015+t)*.08;p.vy+=Math.cos(p.x*.015+t)*.08;
+  p.life-=p.decay;if(p.life<=0){fluidP.splice(i,1);continue}
+  const g=d.createRadialGradient(p.x,p.y,0,p.x,p.y,p.size);
+  g.addColorStop(0,`rgba(${p.r},${p.g},${p.b},${p.life*.85})`);
+  g.addColorStop(1,`rgba(${p.r},${p.g},${p.b},0)`);
+  d.beginPath();d.fillStyle=g;d.arc(p.x,p.y,p.size,0,6.29);d.fill();
+ }
+ const pu=.5+.5*Math.sin(performance.now()*.006);
+ for(const l of hands){const p=lc(l[8]);
+  o.beginPath();o.arc(p.x,p.y,(brushSize+10)*(1+pu*.2),0,6.29);
+  o.strokeStyle=hexRgba(activeColor,.5+pu*.3);o.lineWidth=2;
+  glow(o,activeColor,20);o.stroke();noGlow(o)}
 }
 
-// ── MODE: Mirror Draw ──────────────────────────────────────────────────────
-function drawMirrorMode(hands) {
-  oCtx.clearRect(0, 0, overlayCanvas.width, overlayCanvas.height);
-  if (!hands || hands.length === 0) { lastDrawPts = [null,null]; return; }
+// ══════════════════════════════════════════════════════════
+function onResults(r){handsData=r.multiHandLandmarks||[]}
 
-  const W = overlayCanvas.width;
+function loop(){
+ const h=handsData,n=h.length;
+ if(mode){
+  if(mode!=='draw'){document.getElementById('hd0').className='hand-dot'+(n>0?' active':'');
+   document.getElementById('hd1').className='hand-dot'+(n>1?' active':'')}
+  const sb=document.getElementById('status-bar');
+  if(mode==='string')sb.textContent=n?`${n} HAND${n>1?'S':''} — ARC ACTIVE${n>1?' — PALMS TO CHARGE':''}`:'SHOW HANDS TO ACTIVATE';
+  else if(mode==='draw')sb.textContent=n?`HOLD PEN GESTURE TO PAINT • ✌ COLOUR • 👍👍 ERASE`:'SHOW YOUR HAND';
+  else sb.textContent=n?`${n} HAND${n>1?'S':''} — INK ACTIVE`:'MOVE HANDS TO DISTURB THE INK';
 
-  for (let h = 0; h < Math.min(hands.length, 2); h++) {
-    const lms = hands[h];
-    const tip = lc(lms[8]);
-
-    // Gesture checks (debounced 600ms)
-    const now = Date.now();
-    if (now - lastGestureTime > 600) {
-      const pd = getPinchDist(lms);
-      if (pd < 28) {
-        // Pinch = erase
-        dCtx.clearRect(0, 0, drawCanvas.width, drawCanvas.height);
-        lastDrawPts = [null, null];
-        showGesture('✕ Canvas Cleared');
-        lastGestureTime = now;
-        return;
-      }
-      if (isPeace(lms)) {
-        colorIndex = (colorIndex + 1) % PALETTE.length;
-        activeColor = PALETTE[colorIndex].hex;
-        document.querySelectorAll('.c-swatch').forEach((s,i) => s.classList.toggle('active', i===colorIndex));
-        showGesture(`◈ Color: ${PALETTE[colorIndex].name}`);
-        lastGestureTime = now;
-      }
-    }
-
-    // Persistent draw
-    const prev = lastDrawPts[h];
-    if (prev) {
-      const col = multiColor ? hsl((hueWheel + h * 60) % 360) : activeColor;
-      if (multiColor) hueWheel = (hueWheel + 3) % 360;
-      // Main stroke
-      dCtx.beginPath();
-      dCtx.moveTo(prev.x, prev.y);
-      dCtx.lineTo(tip.x, tip.y);
-      dCtx.strokeStyle = col;
-      dCtx.lineWidth = brushSize;
-      dCtx.lineCap = 'round';
-      dCtx.lineJoin = 'round';
-      glow(dCtx, col, brushSize * 2.5);
-      dCtx.stroke();
-      noGlow(dCtx);
-
-      // Mirror stroke (flip across center X)
-      const mx = W - tip.x, pmx = W - prev.x;
-      const colMirror = multiColor ? hsl((hueWheel + 180) % 360) : hexToRgba(activeColor, 0.6);
-      dCtx.beginPath();
-      dCtx.moveTo(pmx, prev.y);
-      dCtx.lineTo(mx, tip.y);
-      dCtx.strokeStyle = colMirror;
-      dCtx.lineWidth = brushSize;
-      dCtx.lineCap = 'round';
-      glow(dCtx, col, brushSize * 2);
-      dCtx.stroke();
-      noGlow(dCtx);
-    }
-    lastDrawPts[h] = tip;
-
-    const cursorCol = multiColor ? hsl(hueWheel) : activeColor;
-    const mirrorX = W - tip.x;
-    for (const cx of [tip.x, mirrorX]) {
-      oCtx.beginPath();
-      oCtx.arc(cx, tip.y, brushSize + 8, 0, Math.PI*2);
-      oCtx.strokeStyle = cursorCol;
-      oCtx.lineWidth = 1.5;
-      glow(oCtx, cursorCol, 12);
-      oCtx.stroke();
-      noGlow(oCtx);
-      oCtx.beginPath();
-      oCtx.arc(cx, tip.y, 3, 0, Math.PI*2);
-      oCtx.fillStyle = '#fff';
-      glow(oCtx, cursorCol, 16);
-      oCtx.fill();
-      noGlow(oCtx);
-    }
-  }
-  for (let h = hands.length; h < 2; h++) lastDrawPts[h] = null;
+  if(mode==='string')neuralWeb(h);
+  else if(mode==='draw')mirrorDraw(h);
+  else fluid(h);
+ }
+ requestAnimationFrame(loop);
 }
+loop();
 
-// ── MODE: Fluid Ink ────────────────────────────────────────────────────────
-function spawnParticles(x, y, color) {
-  // In multicolor mode each particle gets its own hue
-  const useColor = multiColor ? hsl((hueWheel + Math.random() * 60) % 360) : color;
-  if (multiColor) hueWheel = (hueWheel + 1.5) % 360;
-  const rgb = parseHslOrHex(useColor);
-  for (let i = 0; i < 6; i++) {
-    const angle = Math.random() * Math.PI * 2;
-    const speed = Math.random() * 2.5 + 0.5;
-    const pColor = multiColor ? hsl((hueWheel + i * 25) % 360) : useColor;
-    const pRgb   = multiColor ? parseHslOrHex(pColor) : rgb;
-    fluidParticles.push({
-      x, y,
-      vx: Math.cos(angle) * speed,
-      vy: Math.sin(angle) * speed - 0.8,
-      r: pRgb.r, g: pRgb.g, b: pRgb.b,
-      life: 1.0,
-      decay: Math.random() * 0.012 + 0.006,
-      size: Math.random() * brushSize * 1.2 + 2,
-    });
-  }
-  if (fluidParticles.length > MAX_PARTICLES) {
-    fluidParticles.splice(0, fluidParticles.length - MAX_PARTICLES);
-  }
-}
-
-// Parse either hex or hsl string to {r,g,b}
-function parseHslOrHex(color) {
-  if (color.startsWith('#')) return hexToRgb(color);
-  // hsl(h,s%,l%)
-  const m = color.match(/hsl\((\d+),(\d+)%,(\d+)%\)/);
-  if (m) {
-    const h=+m[1]/360, s=+m[2]/100, l=+m[3]/100;
-    let r,g,b;
-    if (s===0){r=g=b=l;}
-    else{
-      const hue2rgb=(p,q,t)=>{if(t<0)t+=1;if(t>1)t-=1;if(t<1/6)return p+(q-p)*6*t;if(t<1/2)return q;if(t<2/3)return p+(q-p)*(2/3-t)*6;return p;};
-      const q=l<0.5?l*(1+s):l+s-l*s, p=2*l-q;
-      r=hue2rgb(p,q,h+1/3);g=hue2rgb(p,q,h);b=hue2rgb(p,q,h-1/3);
-    }
-    return {r:Math.round(r*255),g:Math.round(g*255),b:Math.round(b*255)};
-  }
-  return {r:0,g:245,b:255};
-}
-
-function updateFluid(hands) {
-  // Fade draw canvas slightly each frame (ink dissipates)
-  dCtx.globalCompositeOperation = 'source-atop';
-  dCtx.fillStyle = 'rgba(2,2,10,0.018)';
-  dCtx.fillRect(0, 0, drawCanvas.width, drawCanvas.height);
-  dCtx.globalCompositeOperation = 'source-over';
-
-  oCtx.clearRect(0, 0, overlayCanvas.width, overlayCanvas.height);
-
-  // Spawn from hand positions
-  if (hands && hands.length > 0) {
-    for (const lms of hands) {
-      for (const idx of FINGERTIPS) {
-        const pt = lc(lms[idx]);
-        spawnParticles(pt.x, pt.y, activeColor);
-      }
-    }
-  }
-
-  // Update & draw particles on draw-canvas
-  for (let i = fluidParticles.length - 1; i >= 0; i--) {
-    const p = fluidParticles[i];
-    p.x += p.vx;
-    p.y += p.vy;
-    p.vx *= 0.97;
-    p.vy *= 0.97;
-    // Curl noise approximation: add small perpendicular push
-    const t = performance.now() * 0.0003;
-    p.vx += Math.sin(p.y * 0.015 + t) * 0.08;
-    p.vy += Math.cos(p.x * 0.015 + t) * 0.08;
-    p.life -= p.decay;
-
-    if (p.life <= 0) { fluidParticles.splice(i, 1); continue; }
-
-    const a = p.life * 0.85;
-    dCtx.beginPath();
-    const grad = dCtx.createRadialGradient(p.x, p.y, 0, p.x, p.y, p.size);
-    grad.addColorStop(0, `rgba(${p.r},${p.g},${p.b},${a})`);
-    grad.addColorStop(1, `rgba(${p.r},${p.g},${p.b},0)`);
-    dCtx.fillStyle = grad;
-    dCtx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
-    dCtx.fill();
-  }
-
-  // Fingertip indicators on overlay
-  if (hands && hands.length > 0) {
-    const now = performance.now() * 0.001;
-    for (const lms of hands) {
-      const tip = lc(lms[8]);
-      const pulse = 0.5 + 0.5 * Math.sin(now * 6);
-      oCtx.beginPath();
-      oCtx.arc(tip.x, tip.y, (brushSize + 10) * (1 + pulse * 0.2), 0, Math.PI*2);
-      oCtx.strokeStyle = hexToRgba(activeColor, 0.5 + pulse * 0.3);
-      oCtx.lineWidth = 2;
-      glow(oCtx, activeColor, 20);
-      oCtx.stroke();
-      noGlow(oCtx);
-    }
-  }
-}
-
-// ── MediaPipe Results Handler ─────────────────────────────────────────────
-function onResults(results) {
-  const hands = results.multiHandLandmarks || [];
-  handsData = hands;
-  const count = hands.length;
-
-  // Update hand indicators
-  document.getElementById('hand-dot-0').classList.toggle('active', count > 0);
-  document.getElementById('hand-dot-1').classList.toggle('active', count > 1);
-
-  // Status
-  const sb = document.getElementById('status-bar');
-  if (currentMode === 'string') {
-    sb.textContent = count === 0 ? 'SHOW HANDS TO ACTIVATE' : `${count} HAND${count>1?'S':''} DETECTED — STRING ART ACTIVE`;
-  } else if (currentMode === 'draw') {
-    sb.textContent = count === 0 ? 'SHOW INDEX FINGER — PINCH TO CLEAR — ✌ CYCLE COLOR' : `DRAWING • ${count} HAND${count>1?'S':''} • PINCH ✊ TO CLEAR`;
-  } else if (currentMode === 'fluid') {
-    sb.textContent = count === 0 ? 'MOVE HANDS TO DISTURB THE INK' : `${count} HAND${count>1?'S':''} — INK SIMULATION ACTIVE`;
-  }
-
-  if (!currentMode) return;
-
-  if (currentMode === 'string') {
-    dCtx.clearRect(0, 0, drawCanvas.width, drawCanvas.height);
-    drawNeuralWeb(hands);
-  } else if (currentMode === 'draw') {
-    drawMirrorMode(hands);
-  } else if (currentMode === 'fluid') {
-    updateFluid(hands);
-  }
-}
-
-// ── MediaPipe Setup ────────────────────────────────────────────────────────
-const hands = new Hands({
-  locateFile: f => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${f}`
-});
-hands.setOptions({
-  maxNumHands: 2,
-  modelComplexity: 1,
-  minDetectionConfidence: 0.72,
-  minTrackingConfidence: 0.65,
-});
+// ── MediaPipe ─────────────────────────────────────────────
+const hands=new Hands({locateFile:f=>`https://cdn.jsdelivr.net/npm/@mediapipe/hands@0.4.1675469240/${f}`});
+hands.setOptions({maxNumHands:2,modelComplexity:1,minDetectionConfidence:.72,minTrackingConfidence:.65});
 hands.onResults(onResults);
-
-let camera = null;
-function startCamera() {
-  if (camera) return;
-  camera = new Camera(video, {
-    onFrame: async () => { await hands.send({ image: video }); },
-    width: 1280, height: 720,
-  });
-  camera.start().then(() => {
-    video.classList.add('visible');
-  });
+let camera=null;
+function startCamera(){
+ if(camera)return;
+ camera=new Camera(video,{onFrame:async()=>{await hands.send({image:video})},width:1280,height:720});
+ camera.start().then(()=>video.classList.add('visible')).catch(e=>{
+  const el=document.getElementById('err');
+  el.style.display='block';
+  el.innerHTML='⚠ CAMERA UNAVAILABLE<br>'+(e&&e.message?e.message:'permission denied')+
+   '<br>Open this file over https:// or localhost and allow camera access.';
+ });
 }
 
-// ── Page Navigation ────────────────────────────────────────────────────────
-function showPage(id) {
-  document.querySelectorAll('.page').forEach(p => p.classList.add('hidden'));
-  const pg = document.getElementById(id);
-  if (pg) pg.classList.remove('hidden');
-}
+// ── UI ────────────────────────────────────────────────────
+const sw=document.getElementById('dash-swatches');
+PALETTE.forEach((c,i)=>{const e=document.createElement('div');
+ e.className='c-swatch'+(i?'':' active');e.style.background=c.h;e.style.color=c.h;e.title=c.n;
+ e.onclick=()=>{document.querySelectorAll('.c-swatch').forEach(s=>s.classList.remove('active'));
+  e.classList.add('active');activeColor=c.h;colorIndex=i};sw.appendChild(e)});
 
-function flashTransition(color, cb) {
-  const el = document.getElementById('mode-flash');
-  el.style.background = color;
-  el.style.opacity = '0.5';
-  setTimeout(() => { el.style.opacity = '0'; setTimeout(cb, 200); }, 150);
-}
+const bs=document.getElementById('dash-brush');
+bs.oninput=()=>{brushSize=+bs.value;document.getElementById('dash-bv').textContent=bs.value};
+document.getElementById('dash-pen').onchange=e=>{penChoice=e.target.value;lastPen=[null,null];
+ hint('✎ PEN: '+e.target.selectedOptions[0].text.toUpperCase())};
+document.getElementById('dash-mirror').onclick=function(){mirrorOn=!mirrorOn;
+ this.classList.toggle('on',mirrorOn);hint(mirrorOn?'⇋ MIRROR ON':'⇋ MIRROR OFF')};
+document.getElementById('dash-multi').onclick=function(){multi=!multi;
+ this.classList.toggle('on',multi);this.textContent=multi?'MULTI ON':'MULTI';
+ hint(multi?'🌈 RAINBOW ON':'◈ SINGLE COLOUR')};
+function clearCanvas(){d.clearRect(0,0,dC.width,dC.height);o.clearRect(0,0,oC.width,oC.height);
+ fluidP=[];sparks=[];waves=[];lastPen=[null,null];springs={};prevTips=[]}
+document.getElementById('dash-clear').onclick=clearCanvas;
+document.getElementById('dash-save').onclick=()=>{
+ const t=document.createElement('canvas');t.width=dC.width;t.height=dC.height;
+ const c=t.getContext('2d');c.save();c.scale(-1,1);c.drawImage(video,-t.width,0,t.width,t.height);c.restore();
+ c.drawImage(dC,0,0);c.drawImage(oC,0,0);
+ const a=document.createElement('a');a.download=`luminary-${Date.now()}.png`;a.href=t.toDataURL();a.click()};
 
-function enterMode(mode) {
-  const colors = { string: '#bf00ff', draw: '#00ff88', fluid: '#00f5ff' };
-  flashTransition(colors[mode] || '#00f5ff', () => {
-    currentMode = mode;
-    stringPhysics = {};
-    prevTipPositions = [];
-    sparkParticles = [];
-    fluidParticles = [];
-    lastDrawPts = [null, null];
-    dCtx.clearRect(0, 0, drawCanvas.width, drawCanvas.height);
-    tCtx.clearRect(0, 0, trailCanvas.width, trailCanvas.height);
-    oCtx.clearRect(0, 0, overlayCanvas.width, overlayCanvas.height);
+function showPage(id){document.querySelectorAll('.page').forEach(p=>p.classList.add('hidden'));
+ if(id)document.getElementById(id).classList.remove('hidden')}
+function flash(col,cb){const e=document.getElementById('mode-flash');
+ e.style.background=col;e.style.opacity='.5';
+ setTimeout(()=>{e.style.opacity='0';setTimeout(cb,200)},150)}
 
-    const labels = { string: '// NEURAL WEB', draw: '// MIRROR DRAW', fluid: '// FLUID INK' };
-    document.getElementById('hud-mode-label').textContent = labels[mode];
+document.getElementById('btn-launch').onclick=()=>{startCamera();flash('#00f5ff',()=>showPage('page-modes'))};
+document.querySelectorAll('.mode-card').forEach(c=>c.onclick=()=>{
+ const m=c.dataset.mode,cols={string:'#bf00ff',draw:'#00ff88',fluid:'#00f5ff'};
+ flash(cols[m],()=>{
+  mode=m;clearCanvas();charge=0;
+  document.getElementById('hud-mode-label').textContent=
+   {string:'// NEURAL WEB',draw:'// MIRROR DRAW',fluid:'// FLUID INK'}[m];
+  const dr=m==='draw'?'flex':'none';
+  document.getElementById('pen-section').style.display=dr;
+  document.getElementById('mirror-section').style.display=dr;
+  showPage('');document.getElementById('hud').style.display='block';
+ })});
+document.getElementById('dash-back').onclick=()=>{
+ mode=null;clearCanvas();document.getElementById('hud').style.display='none';
+ flash('#00f5ff',()=>showPage('page-modes'))};
 
-    showPage('');  // hide all pages
-    document.querySelectorAll('.page').forEach(p => p.classList.add('hidden'));
-    document.getElementById('hud').style.display = 'block';
-  });
-}
-
-// ── Landing → Mode Select ─────────────────────────────────────────────────
-document.getElementById('btn-launch').addEventListener('click', () => {
-  startCamera();
-  flashTransition('#00f5ff', () => showPage('page-modes'));
-});
-
-// Mode card clicks
-document.querySelectorAll('.mode-card').forEach(card => {
-  card.addEventListener('click', () => enterMode(card.dataset.mode));
-});
-
-// ── HUD Buttons ────────────────────────────────────────────────────────────
-document.getElementById('hud-back').addEventListener('click', () => doBack());
-document.getElementById('hud-multi').addEventListener('click', toggleMulti);
-document.getElementById('hud-clear').addEventListener('click', clearAll);
-
-function toggleMulti() {
-  multiColor = !multiColor;
-  ['hud-multi','dash-multi'].forEach(id => {
-    const btn = document.getElementById(id);
-    if (!btn) return;
-    btn.textContent = multiColor ? 'MULTI ON' : 'MULTI';
-    btn.classList.toggle('multi-on', multiColor);
-  });
-  showGesture(multiColor ? '🌈 Rainbow ON' : '◈ Single Color');
-}
-function clearAll() {
-  dCtx.clearRect(0, 0, drawCanvas.width, drawCanvas.height);
-  tCtx.clearRect(0, 0, trailCanvas.width, trailCanvas.height);
-  oCtx.clearRect(0, 0, overlayCanvas.width, overlayCanvas.height);
-  fluidParticles = []; sparkParticles = []; lastDrawPts = [null, null];
-  stringPhysics = {}; prevTipPositions = [];
-}
-document.getElementById('dash-multi').addEventListener('click', toggleMulti);
-document.getElementById('dash-clear').addEventListener('click', clearAll);
-
-function doSave() {
-  const tmp = document.createElement('canvas');
-  tmp.width = drawCanvas.width; tmp.height = drawCanvas.height;
-  const tCtx = tmp.getContext('2d');
-  tCtx.save();
-  tCtx.scale(-1,1);
-  tCtx.drawImage(video, -tmp.width, 0, tmp.width, tmp.height);
-  tCtx.restore();
-  tCtx.drawImage(drawCanvas,   0, 0);
-  tCtx.drawImage(overlayCanvas,0, 0);
-  const link = document.createElement('a');
-  link.download = `hand-art-${Date.now()}.png`;
-  link.href = tmp.toDataURL('image/png');
-  link.click();
-}
-document.getElementById('hud-save').addEventListener('click', doSave);
-document.getElementById('dash-save').addEventListener('click', doSave);
-
-function doBack() {
-  currentMode = null;
-  dCtx.clearRect(0, 0, drawCanvas.width, drawCanvas.height);
-  tCtx.clearRect(0, 0, trailCanvas.width, trailCanvas.height);
-  oCtx.clearRect(0, 0, overlayCanvas.width, overlayCanvas.height);
-  document.getElementById('hud').style.display = 'none';
-  flashTransition('#00f5ff', () => showPage('page-modes'));
-}
-document.getElementById('dash-back').addEventListener('click', doBack);
-
-// ── Animated landing particles ────────────────────────────────────────────
-(function spawnLandingParticles() {
-  const colors = ['#00f5ff','#bf00ff','#ff006e','#00ff88'];
-  for (let i = 0; i < 60; i++) {
-    const el = document.createElement('div');
-    el.className = 'particle';
-    const size = Math.random() * 3 + 1;
-    const color = colors[Math.floor(Math.random() * colors.length)];
-    el.style.cssText = `
-      width:${size}px;height:${size}px;
-      background:${color};
-      box-shadow:0 0 ${size*3}px ${color};
-      left:${Math.random()*100}vw;
-      top:${Math.random()*100}vh;
-      opacity:${Math.random()*0.6+0.1};
-      animation:float-${i%3} ${4+Math.random()*8}s ease-in-out infinite ${Math.random()*6}s alternate;
-    `;
-    document.body.appendChild(el);
-  }
-  const style = document.createElement('style');
-  style.textContent = `
-    @keyframes float-0{to{transform:translateY(-40px) translateX(20px);}}
-    @keyframes float-1{to{transform:translateY(30px) translateX(-30px);}}
-    @keyframes float-2{to{transform:translateY(-20px) translateX(-20px);}}
-  `;
-  document.head.appendChild(style);
-})();
-
-// ── String art animation loop (needs rAF for physics) ────────────────────
-function animLoop() {
-  if (currentMode === 'string') {
-    if (handsData.length > 0) {
-      drawNeuralWeb(handsData);
-    } else {
-      // fade trail (draw canvas) and let sparks die out even with no hands
-      dCtx.globalCompositeOperation = 'destination-out';
-      dCtx.fillStyle = 'rgba(0,0,0,0.28)';
-      dCtx.fillRect(0, 0, drawCanvas.width, drawCanvas.height);
-      dCtx.globalCompositeOperation = 'source-over';
-      oCtx.clearRect(0, 0, overlayCanvas.width, overlayCanvas.height);
-      updateSparks();
-    }
-  }
-  requestAnimationFrame(animLoop);
-}
-animLoop();
-
+// landing particles
+(function(){const p=document.getElementById('page-landing'),cs=['#00f5ff','#bf00ff','#ff006e','#00ff88'];
+ for(let i=0;i<60;i++){const e=document.createElement('div');e.className='particle';
+  const s=Math.random()*3+1,c=cs[i%4];
+  e.style.cssText=`width:${s}px;height:${s}px;background:${c};box-shadow:0 0 ${s*3}px ${c};
+   left:${Math.random()*100}vw;top:${Math.random()*100}vh;opacity:${Math.random()*.6+.15};
+   animation:fl${i%3} ${4+Math.random()*8}s ease-in-out infinite ${Math.random()*6}s alternate`;
+  p.appendChild(e)}
+ const st=document.createElement('style');
+ st.textContent=`@keyframes fl0{to{transform:translate(20px,-40px)}}
+  @keyframes fl1{to{transform:translate(-30px,30px)}}@keyframes fl2{to{transform:translate(-20px,-20px)}}`;
+ document.head.appendChild(st)})();
 </script>
 </body>
 </html>
